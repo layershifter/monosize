@@ -3,7 +3,7 @@ import { styleText } from 'node:util';
 
 import { getChangedEntriesInReport } from '../utils/getChangedEntriesInReport.mjs';
 import { formatBytes } from '../utils/helpers.mjs';
-import type { AssetDiff, DiffByMetric } from '../utils/calculateDiff.mjs';
+import { hasMovedAssetDelta, type AssetDiff, type DiffByMetric } from '../utils/calculateDiff.mjs';
 import type { ComparedReportEntry } from '../utils/compareResultsInReports.mjs';
 import { logger } from '../logger.mjs';
 import { formatDeltaFactory, type Reporter } from './shared.mjs';
@@ -20,9 +20,7 @@ function formatDelta(diff: DiffByMetric, deltaFormat: keyof DiffByMetric): strin
   const output = formatDeltaFactory(diff, { deltaFormat, directionSymbol: getDirectionSymbol });
   const color = diff.delta > 0 ? ('red' as const) : ('green' as const);
 
-  return typeof output === 'string'
-    ? output
-    : styleText(color, output.deltaOutput + output.dirSymbol);
+  return typeof output === 'string' ? output : styleText(color, output.deltaOutput + output.dirSymbol);
 }
 
 function buildEntryRow(entry: ComparedReportEntry, deltaFormat: keyof DiffByMetric): Row {
@@ -54,14 +52,11 @@ function buildEntryRow(entry: ComparedReportEntry, deltaFormat: keyof DiffByMetr
  * stored `assets.svg`) still surfaces. Returns `[]` when only a single
  * type changed — that sub-row would just duplicate the top-level total.
  */
-function buildBreakdownRows(
-  assetsDiff: Record<string, AssetDiff> | undefined,
-  deltaFormat: keyof DiffByMetric,
-): Row[] {
+function buildBreakdownRows(assetsDiff: Record<string, AssetDiff> | undefined, deltaFormat: keyof DiffByMetric): Row[] {
   if (!assetsDiff) return [];
 
   const changedTypes = Object.keys(assetsDiff)
-    .filter(t => assetsDiff[t].minified.delta !== 0 || assetsDiff[t].gzip.delta !== 0)
+    .filter(t => hasMovedAssetDelta(assetsDiff[t]))
     .sort();
 
   if (changedTypes.length <= 1) return [];
