@@ -7,7 +7,7 @@ import type { AssetType, LoadedMonoSizeConfig, MonoSizeConfig } from '../types.m
 const CONFIG_FILE_NAME = ['monosize.config.js', 'monosize.config.mjs'];
 
 const KNOWN_ASSET_TYPES: readonly AssetType[] = ['js', 'json', 'css'];
-const DEFAULT_ASSET_TYPES: readonly AssetType[] = ['js', 'json', 'css'];
+const DEFAULT_ASSET_TYPES: readonly AssetType[] = ['js'];
 
 let cache: LoadedMonoSizeConfig | undefined;
 
@@ -22,9 +22,7 @@ function resolveAssetTypes(input: MonoSizeConfig['assetTypes']): AssetType[] {
 
   for (const entry of input) {
     if (!KNOWN_ASSET_TYPES.includes(entry)) {
-      throw new Error(
-        `Unknown assetType "${entry}" in monosize.config. Allowed: ${KNOWN_ASSET_TYPES.join(', ')}`,
-      );
+      throw new Error(`Unknown assetType "${entry}" in monosize.config. Allowed: ${KNOWN_ASSET_TYPES.join(', ')}`);
     }
   }
 

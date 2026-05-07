@@ -136,9 +136,10 @@ const config = {
 
   threshold: '10kB', // default is "10%"
 
-  // Optional: which asset types to measure. Default: ['js', 'json', 'css'].
-  // Files in the bundler output dir whose extension is not in the allowlist
-  // are ignored. Each entry must be one of the known AssetType values.
+  // Optional: which asset types to measure. Default: ['js'] — opt in to
+  // 'css' / 'json' by listing them explicitly. Files in the bundler output
+  // dir whose extension is not in the allowlist are ignored. Each entry
+  // must be one of the known AssetType values.
   assetTypes: ['js', 'css', 'json'],
 };
 

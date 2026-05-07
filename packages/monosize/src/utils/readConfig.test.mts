@@ -78,10 +78,10 @@ describe('readConfig', () => {
   });
 
   describe('assetTypes', () => {
-    it('defaults to [css, js, json] (sorted) when omitted', async () => {
+    it('defaults to [js] when omitted', async () => {
       await setup({ repository: '@microsoft/monosize' });
       const config = await readConfig(true);
-      expect(config.assetTypes).toEqual(['css', 'js', 'json']);
+      expect(config.assetTypes).toEqual(['js']);
     });
 
     it('passes through valid assetTypes (sorted, deduped)', async () => {
