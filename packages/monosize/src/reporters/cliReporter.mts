@@ -76,17 +76,21 @@ export const cliReporter: Reporter = (report, options) => {
     // Per-asset-type breakdown sub-rows: one per type whose minified or gzip
     // delta is non-zero. Iterates Object.keys so future-version JSON carrying
     // unknown types still surfaces in the output. Sorted lexicographically.
+    // Skipped when only a single type changed — that sub-row would just
+    // duplicate the top-level total.
     if (assetsDiff) {
       const changedTypes = Object.keys(assetsDiff)
         .filter(t => assetsDiff[t].minified.delta !== 0 || assetsDiff[t].gzip.delta !== 0)
         .sort();
-      for (const type of changedTypes) {
-        const d = assetsDiff[type];
-        reportOutput.push([
-          styleText('dim', `  ${type}`),
-          '',
-          formatDelta(d.minified, deltaFormat) + '\n' + formatDelta(d.gzip, deltaFormat),
-        ]);
+      if (changedTypes.length > 1) {
+        for (const type of changedTypes) {
+          const d = assetsDiff[type];
+          reportOutput.push([
+            styleText('dim', `  ${type}`),
+            '',
+            formatDelta(d.minified, deltaFormat) + '\n' + formatDelta(d.gzip, deltaFormat),
+          ]);
+        }
       }
     }
   });

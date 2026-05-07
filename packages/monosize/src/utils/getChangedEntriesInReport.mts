@@ -6,6 +6,18 @@ type EntriesInReport = {
   unchangedEntries: ComparedReport;
 };
 
+function hasFlatTotals(entry: ComparedReportEntry): boolean {
+  return entry.diff.minified.delta === 0 && entry.diff.gzip.delta === 0;
+}
+
+function hasFlatAssetsBreakdown(entry: ComparedReportEntry): boolean {
+  if (!entry.assetsDiff) {
+    return true;
+  }
+
+  return Object.values(entry.assetsDiff).every(d => d.minified.delta === 0 && d.gzip.delta === 0);
+}
+
 /**
  * An entry is "unchanged" iff totals are flat AND every per-type delta
  * is zero (across both `minified` and `gzip`). The breakdown check
@@ -13,11 +25,8 @@ type EntriesInReport = {
  * regressed and another shrank — those would otherwise be silently
  * dropped from the diff output.
  */
-function isUnchanged(entry: ComparedReportEntry): boolean {
-  const totalsFlat = entry.diff.gzip.delta === 0 && entry.diff.minified.delta === 0;
-  if (!totalsFlat) return false;
-  if (!entry.assetsDiff) return true;
-  return Object.values(entry.assetsDiff).every(d => d.minified.delta === 0 && d.gzip.delta === 0);
+export function isUnchanged(entry: ComparedReportEntry): boolean {
+  return hasFlatTotals(entry) && hasFlatAssetsBreakdown(entry);
 }
 
 export function getChangedEntriesInReport(report: ComparedReport): EntriesInReport {
