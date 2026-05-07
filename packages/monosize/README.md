@@ -25,7 +25,6 @@
 - [Configuration](#configuration)
   - [Config API](#config-api)
   - [Measuring CSS, JSON, and other assets](#measuring-css-json-and-other-assets)
-  - [Migration from `outputPath` to `outputDir` (for custom adapter authors)](#migration-from-outputpath-to-outputdir-for-custom-adapter-authors)
   - [Bundler adapters](#bundler-adapters)
   - [Storage adapters](#storage-adapters)
   - [Threshold](#threshold)
@@ -158,22 +157,6 @@ adapter's config-enhancer callback) to extract them. monosize itself does
 not bundle a CSS plugin — install whatever your bundler needs (e.g.
 `mini-css-extract-plugin` for webpack) in your own project and wire it
 through the enhancer. Rspack / vite handle CSS extraction natively.
-
-### Migration from `outputPath` to `outputDir` (for custom adapter authors)
-
-`BundlerAdapter` no longer returns `outputPath`. Each fixture's
-`buildFixture` / `buildFixtures` returns `{ outputDir }` — a per-fixture
-directory whose flat layout the CLI walks. Adapters need to:
-
-- Configure their bundler to write the JS bundle as `<outputDir>/index.js`.
-- Keep the layout flat (no nested subdirectories inside `outputDir`).
-- For debug mode, return a `debugOutputPath` that lives **alongside**
-  `outputDir`, not inside it (otherwise it would be double-counted as a JS
-  asset by the extension scan).
-
-The vite adapter additionally switched its lib format from `iife` to `es`
-so rollup reliably extracts CSS sidecars; `lib.name` and
-`rollupOptions.output.globals` no longer apply.
 
 ### Bundler adapters
 
