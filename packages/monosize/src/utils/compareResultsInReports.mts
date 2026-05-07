@@ -1,8 +1,38 @@
-import { calculateDiff, EMPTY_DIFF, type DiffForEntry } from './calculateDiff.mjs';
-import type { BundleSizeReport, BundleSizeReportEntry, ThresholdValue } from '../types.mjs';
+import { calculateAssetDiff, calculateDiff, EMPTY_DIFF, type AssetDiff, type DiffForEntry } from './calculateDiff.mjs';
+import type { AssetSize, BundleSizeReport, BundleSizeReportEntry, ThresholdValue } from '../types.mjs';
 
-export type ComparedReportEntry = BundleSizeReportEntry & { diff: DiffForEntry };
+export type ComparedReportEntry = BundleSizeReportEntry & {
+  diff: DiffForEntry;
+  /**
+   * Per-asset-type breakdown of deltas. Absent when neither side carried
+   * `assets` (legacy report). When present, keys are the union of
+   * `Object.keys(local.assets)` and `Object.keys(remote.assets)` so a
+   * type only present on one side surfaces as a positive/negative delta.
+   *
+   * Keys are typed as `string` rather than `AssetType` so future-version
+   * JSON carrying unknown types (e.g. a stored `assets.svg`) flows through
+   * without TypeScript narrowing dropping it.
+   */
+  assetsDiff?: Record<string, AssetDiff>;
+};
 export type ComparedReport = ComparedReportEntry[];
+
+function buildAssetsDiff(
+  localAssets: BundleSizeReportEntry['assets'],
+  remoteAssets: BundleSizeReportEntry['assets'],
+): Record<string, AssetDiff> | undefined {
+  if (!localAssets && !remoteAssets) {
+    return undefined;
+  }
+
+  // Widen the index signature to `string` so unknown future asset types
+  // (e.g. a stored `assets.svg`) flow through without a cast at the call site.
+  const local: Record<string, AssetSize | undefined> = localAssets ?? {};
+  const remote: Record<string, AssetSize | undefined> = remoteAssets ?? {};
+  const types = [...new Set([...Object.keys(local), ...Object.keys(remote)])].sort();
+
+  return Object.fromEntries(types.map(type => [type, calculateAssetDiff(local[type], remote[type])]));
+}
 
 export function compareResultsInReports(
   localReport: BundleSizeReport,
@@ -14,6 +44,8 @@ export function compareResultsInReports(
       entry => localEntry.packageName === entry.packageName && localEntry.path === entry.path,
     );
 
+    const assetsDiff = remoteEntry ? buildAssetsDiff(localEntry.assets, remoteEntry.assets) : undefined;
+
     if (remoteEntry) {
       return {
         ...localEntry,
@@ -22,6 +54,7 @@ export function compareResultsInReports(
           remoteEntry,
           threshold,
         }),
+        ...(assetsDiff && { assetsDiff }),
       };
     }
 
