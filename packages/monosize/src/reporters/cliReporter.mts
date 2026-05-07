@@ -3,99 +3,102 @@ import { styleText } from 'node:util';
 
 import { getChangedEntriesInReport } from '../utils/getChangedEntriesInReport.mjs';
 import { formatBytes } from '../utils/helpers.mjs';
-import type { DiffByMetric } from '../utils/calculateDiff.mjs';
+import type { AssetDiff, DiffByMetric } from '../utils/calculateDiff.mjs';
+import type { ComparedReportEntry } from '../utils/compareResultsInReports.mjs';
 import { logger } from '../logger.mjs';
 import { formatDeltaFactory, type Reporter } from './shared.mjs';
 
+type Row = [string, string, string];
+
 function getDirectionSymbol(value: number): string {
-  if (value < 0) {
-    return '↓';
-  }
-
-  if (value > 0) {
-    return '↑';
-  }
-
+  if (value < 0) return '↓';
+  if (value > 0) return '↑';
   return '';
 }
 
 function formatDelta(diff: DiffByMetric, deltaFormat: keyof DiffByMetric): string {
   const output = formatDeltaFactory(diff, { deltaFormat, directionSymbol: getDirectionSymbol });
-
-  const color = diff.delta > 0 ? 'red' : 'green';
+  const color = diff.delta > 0 ? ('red' as const) : ('green' as const);
 
   return typeof output === 'string'
     ? output
-    : styleText(color as 'red' | 'green', output.deltaOutput + output.dirSymbol);
+    : styleText(color, output.deltaOutput + output.dirSymbol);
+}
+
+function buildEntryRow(entry: ComparedReportEntry, deltaFormat: keyof DiffByMetric): Row {
+  const { diff, gzippedSize, minifiedSize, name, packageName } = entry;
+
+  const fixtureColumn = [
+    styleText('bold', packageName),
+    name + (diff.empty ? styleText('cyan', ' (new)') : ''),
+    diff.exceedsThreshold && styleText('red', `(${styleText('bold', '!')} over threshold)`),
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const minifiedBefore = diff.empty ? 'N/A' : formatBytes(minifiedSize - diff.minified.delta);
+  const gzippedBefore = diff.empty ? 'N/A' : formatBytes(gzippedSize - diff.gzip.delta);
+  const beforeColumn = [minifiedBefore, gzippedBefore].join('\n');
+
+  const minifiedAfter = formatDelta(diff.minified, deltaFormat) + ' ' + formatBytes(minifiedSize);
+  const gzippedAfter = formatDelta(diff.gzip, deltaFormat) + ' ' + formatBytes(gzippedSize);
+  const afterColumn = [minifiedAfter, gzippedAfter].join('\n');
+
+  return [fixtureColumn, beforeColumn, afterColumn];
+}
+
+/**
+ * Per-asset-type sub-rows for a single fixture. One row per type whose
+ * minified or gzip delta is non-zero, sorted lexicographically. Iterates
+ * `Object.keys` so future-version JSON carrying unknown types (e.g. a
+ * stored `assets.svg`) still surfaces. Returns `[]` when only a single
+ * type changed — that sub-row would just duplicate the top-level total.
+ */
+function buildBreakdownRows(
+  assetsDiff: Record<string, AssetDiff> | undefined,
+  deltaFormat: keyof DiffByMetric,
+): Row[] {
+  if (!assetsDiff) return [];
+
+  const changedTypes = Object.keys(assetsDiff)
+    .filter(t => assetsDiff[t].minified.delta !== 0 || assetsDiff[t].gzip.delta !== 0)
+    .sort();
+
+  if (changedTypes.length <= 1) return [];
+
+  return changedTypes.map(type => {
+    const d = assetsDiff[type];
+    return [
+      styleText('dim', `  ${type}`),
+      '',
+      [formatDelta(d.minified, deltaFormat), formatDelta(d.gzip, deltaFormat)].join('\n'),
+    ];
+  });
 }
 
 export const cliReporter: Reporter = (report, options) => {
   const { commitSHA, repository, deltaFormat } = options;
-  const footer = `🤖 This report was generated against '${repository}/commit/${commitSHA}'`;
-
   const { changedEntries } = getChangedEntriesInReport(report);
-
-  const reportOutput = new Table({
-    colAligns: ['left', 'right', 'right'],
-    head: ['Fixture', 'Before', 'After (minified/GZIP)'],
-  });
 
   if (changedEntries.length === 0) {
     logger.success('No changes found');
     return;
   }
 
-  changedEntries.forEach(entry => {
-    const { diff, gzippedSize, minifiedSize, name, packageName, assetsDiff } = entry;
-
-    const primaryLine = styleText('bold', packageName);
-    const secondaryLine = name + (diff.empty ? styleText('cyan', ' (new)') : '');
-    const tertiaryLine = diff.exceedsThreshold
-      ? styleText('red', `(${styleText('bold', '!')} over threshold)`)
-      : undefined;
-    const fixtureColumn = primaryLine + '\n' + secondaryLine + (tertiaryLine ? '\n' + tertiaryLine : '');
-
-    const minifiedBefore = diff.empty ? 'N/A' : formatBytes(minifiedSize - diff.minified.delta);
-    const gzippedBefore = diff.empty ? 'N/A' : formatBytes(gzippedSize - diff.gzip.delta);
-
-    const minifiedAfter = formatBytes(minifiedSize);
-    const gzippedAfter = formatBytes(gzippedSize);
-
-    const beforeColumn = minifiedBefore + '\n' + gzippedBefore;
-    const afterColumn =
-      formatDelta(diff.minified, deltaFormat) +
-      ' ' +
-      minifiedAfter +
-      '\n' +
-      formatDelta(diff.gzip, deltaFormat) +
-      ' ' +
-      gzippedAfter;
-
-    reportOutput.push([fixtureColumn, beforeColumn, afterColumn]);
-
-    // Per-asset-type breakdown sub-rows: one per type whose minified or gzip
-    // delta is non-zero. Iterates Object.keys so future-version JSON carrying
-    // unknown types still surfaces in the output. Sorted lexicographically.
-    // Skipped when only a single type changed — that sub-row would just
-    // duplicate the top-level total.
-    if (assetsDiff) {
-      const changedTypes = Object.keys(assetsDiff)
-        .filter(t => assetsDiff[t].minified.delta !== 0 || assetsDiff[t].gzip.delta !== 0)
-        .sort();
-      if (changedTypes.length > 1) {
-        for (const type of changedTypes) {
-          const d = assetsDiff[type];
-          reportOutput.push([
-            styleText('dim', `  ${type}`),
-            '',
-            formatDelta(d.minified, deltaFormat) + '\n' + formatDelta(d.gzip, deltaFormat),
-          ]);
-        }
-      }
-    }
+  const table = new Table({
+    colAligns: ['left', 'right', 'right'],
+    head: ['Fixture', 'Before', 'After (minified/GZIP)'],
   });
 
-  logger.raw(reportOutput.toString());
+  for (const entry of changedEntries) {
+    table.push(buildEntryRow(entry, deltaFormat));
+    for (const row of buildBreakdownRows(entry.assetsDiff, deltaFormat)) {
+      table.push(row);
+    }
+  }
+
+  const footer = `🤖 This report was generated against '${repository}/commit/${commitSHA}'`;
+  logger.raw(table.toString());
   logger.raw('');
   logger.raw(footer);
 };
