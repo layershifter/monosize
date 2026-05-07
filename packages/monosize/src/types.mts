@@ -141,7 +141,8 @@ export type MonoSizeConfig = {
   /**
    * Asset types to measure. Each entry must be a member of `AssetType`
    * (`'js' | 'json' | 'css'`). Files of other types in the bundler output
-   * directory are ignored. Default: `['js', 'css', 'json']`.
+   * directory are ignored. Default: `['js']` — opt in to `'css'` / `'json'`
+   * by listing them explicitly.
    */
   assetTypes?: AssetType[];
 };

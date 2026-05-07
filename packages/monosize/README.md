@@ -24,6 +24,7 @@
   - [Fixtures](#fixtures)
 - [Configuration](#configuration)
   - [Config API](#config-api)
+  - [Measuring CSS, JSON, and other assets](#measuring-css-json-and-other-assets)
   - [Bundler adapters](#bundler-adapters)
   - [Storage adapters](#storage-adapters)
   - [Threshold](#threshold)
@@ -133,10 +134,29 @@ const config = {
   },
 
   threshold: '10kB', // default is "10%"
+
+  // Optional: which asset types to measure. Default: ['js'] — opt in to
+  // 'css' / 'json' by listing them explicitly. Files in the bundler output
+  // dir whose extension is not in the allowlist are ignored. Each entry
+  // must be one of the known AssetType values.
+  assetTypes: ['js', 'css', 'json'],
 };
 
 export default config;
 ```
+
+### Measuring CSS, JSON, and other assets
+
+Each fixture's bundler output is treated as a directory; the CLI walks it
+non-recursively, classifies files by extension against `assetTypes`, and
+reports a per-type breakdown alongside top-level totals. Threshold gates on
+totals only.
+
+To measure CSS or other non-JS assets, configure your bundler (via the
+adapter's config-enhancer callback) to extract them. monosize itself does
+not bundle a CSS plugin — install whatever your bundler needs (e.g.
+`mini-css-extract-plugin` for webpack) in your own project and wire it
+through the enhancer. Rspack / vite handle CSS extraction natively.
 
 ### Bundler adapters
 
@@ -170,8 +190,8 @@ monosize measure [--debug] [--artifacts-location] [--fixtures] [--build-mode] [-
 Builds fixtures and produces artifacts. For each fixture:
 
 - `[fixture].fixture.js` - a modified fixture without a default export, used by a bundler
-- `[fixture].output.js` - a fully minified file, used for measurements
-- `[fixture].debug.js` - a partially minified file, useful for debugging (optional, if `--debug` is passed)
+- `[fixture].output/` - a directory containing the bundler's output for this fixture (at minimum `index.js`, plus extracted CSS / JSON sidecars when configured). The CLI walks this directory, classifies files by extension against `assetTypes`, and produces a per-type breakdown plus totals.
+- `[fixture].debug.js` - a partially minified file alongside (not inside) `[fixture].output/`, useful for debugging (optional, if `--debug` is passed)
 
 Produces a report file (`dist/bundle-size/monosize.json`) that is used by other steps.
 
