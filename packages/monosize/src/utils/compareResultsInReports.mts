@@ -1,5 +1,5 @@
 import { calculateAssetDiff, calculateDiff, EMPTY_DIFF, type AssetDiff, type DiffForEntry } from './calculateDiff.mjs';
-import type { BundleSizeReport, BundleSizeReportEntry, ThresholdValue } from '../types.mjs';
+import type { AssetSize, BundleSizeReport, BundleSizeReportEntry, ThresholdValue } from '../types.mjs';
 
 export type ComparedReportEntry = BundleSizeReportEntry & {
   diff: DiffForEntry;
@@ -25,12 +25,13 @@ function buildAssetsDiff(
     return undefined;
   }
 
-  const keys = new Set<string>([...Object.keys(localAssets ?? {}), ...Object.keys(remoteAssets ?? {})]);
-  const result: Record<string, AssetDiff> = {};
-  for (const key of [...keys].sort()) {
-    result[key] = calculateAssetDiff(localAssets?.[key as keyof typeof localAssets], remoteAssets?.[key as keyof typeof remoteAssets]);
-  }
-  return result;
+  // Widen the index signature to `string` so unknown future asset types
+  // (e.g. a stored `assets.svg`) flow through without a cast at the call site.
+  const local: Record<string, AssetSize | undefined> = localAssets ?? {};
+  const remote: Record<string, AssetSize | undefined> = remoteAssets ?? {};
+  const types = [...new Set([...Object.keys(local), ...Object.keys(remote)])].sort();
+
+  return Object.fromEntries(types.map(type => [type, calculateAssetDiff(local[type], remote[type])]));
 }
 
 export function compareResultsInReports(
