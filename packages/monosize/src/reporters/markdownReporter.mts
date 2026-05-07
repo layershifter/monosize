@@ -1,6 +1,6 @@
 import { getChangedEntriesInReport } from '../utils/getChangedEntriesInReport.mjs';
 import { formatBytes } from '../utils/helpers.mjs';
-import type { DiffByMetric } from '../utils/calculateDiff.mjs';
+import { hasMovedAssetDelta, type DiffByMetric } from '../utils/calculateDiff.mjs';
 import { formatDeltaFactory, type Reporter } from './shared.mjs';
 import { logger } from '../logger.mjs';
 
@@ -73,6 +73,47 @@ export const markdownReporter: Reporter = (report, options) => {
     });
 
     reportOutput.push('');
+
+    // Per-asset-type breakdown lives in its own section after the totals
+    // table — GFM tables can't span sub-rows, so interleaving <details>
+    // mid-table would break parsing. One <details> block per changed entry
+    // whose breakdown moved across more than one type — a single moved type
+    // would just duplicate the totals row, matching the cliReporter rule.
+    const entriesWithBreakdown = changedEntries.flatMap(entry => {
+      if (!entry.assetsDiff) {
+        return [];
+      }
+      const movedTypes = Object.keys(entry.assetsDiff)
+        .filter(t => hasMovedAssetDelta(entry.assetsDiff![t]))
+        .sort();
+      if (movedTypes.length <= 1) {
+        return [];
+      }
+      return [{ entry, movedTypes }];
+    });
+    const missingBreakdown = changedEntries.some(entry => !entry.assetsDiff && !entry.diff.empty);
+
+    if (entriesWithBreakdown.length > 0 || missingBreakdown) {
+      reportOutput.push('### Breakdown', '');
+
+      if (missingBreakdown) {
+        reportOutput.push(
+          '> Breakdown unavailable for some fixtures (remote report predates per-asset support — re-run measure on main to populate).',
+          '',
+        );
+      }
+
+      for (const { entry, movedTypes } of entriesWithBreakdown) {
+        reportOutput.push(`<details><summary><samp>${entry.packageName}</samp> · ${entry.name}</summary>`, '');
+        for (const type of movedTypes) {
+          const d = entry.assetsDiff![type];
+          reportOutput.push(
+            `- \`${type}\`: ${formatDelta(d.minified, deltaFormat)} minified, ${formatDelta(d.gzip, deltaFormat)} gzipped`,
+          );
+        }
+        reportOutput.push('</details>', '');
+      }
+    }
   }
 
   if (showUnchanged && unchangedEntries.length > 0) {

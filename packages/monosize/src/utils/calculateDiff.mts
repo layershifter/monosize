@@ -89,6 +89,15 @@ export function calculateDiff(params: {
 }
 
 /**
+ * `true` when an asset type's diff has a non-zero minified or gzip delta.
+ * The single shared predicate used by reporters and the changed/unchanged
+ * splitter so they all agree on what "moved" means.
+ */
+export function hasMovedAssetDelta(diff: AssetDiff): boolean {
+  return diff.minified.delta !== 0 || diff.gzip.delta !== 0;
+}
+
+/**
  * Per-asset-type diff. Treats a missing side (asset only present in local
  * OR remote) as `{ minifiedSize: 0, gzippedSize: 0 }` — a brand-new type
  * surfaces as a positive delta, a removed type as a negative delta.

@@ -1,3 +1,4 @@
+import { hasMovedAssetDelta } from './calculateDiff.mjs';
 import type { ComparedReport, ComparedReportEntry } from './compareResultsInReports.mjs';
 import { sortComparedReport } from './sortComparedReport.mjs';
 
@@ -15,7 +16,7 @@ function hasFlatAssetsBreakdown(entry: ComparedReportEntry): boolean {
     return true;
   }
 
-  return Object.values(entry.assetsDiff).every(d => d.minified.delta === 0 && d.gzip.delta === 0);
+  return !Object.values(entry.assetsDiff).some(hasMovedAssetDelta);
 }
 
 /**
